@@ -6,3 +6,5 @@ RUN micromamba install -y -n base -f /tmp/env.yaml && \
     micromamba clean --all --yes
 
 RUN ln -f /opt/conda/share/trimmomatic/trimmomatic.jar /opt/conda/bin/trimmomatic
+
+ENV PATH="/opt/conda/bin:$PATH"
