@@ -18,7 +18,7 @@ VERSION ?= latest## Version tag on the Image
 CONTAINER_HOME ?=$(HOME)/containers
 DATABASE_HOME ?=$(HOME)/containers
 ### MAKEFILE SETTINGS BLOCK
-IMAGES := bzip2 kneaddata/012 metaphlan/3 metaphlan/4 humann/3 humann/4
+IMAGES := bzip2 halla/0820 omixer_rpm kneaddata/012 metaphlan/3 metaphlan/4 humann/3 humann/4
 IMAGE_ALIASES := $(subst /,-,$(IMAGES))
 
 .PHONY: all login build push apptainer clean $(IMAGE_ALIASES)
