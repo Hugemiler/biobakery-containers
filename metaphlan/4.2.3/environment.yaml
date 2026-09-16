@@ -6,4 +6,6 @@ channels:
 dependencies:
   - python=3.8
   - procps-ng
-  - metaphlan=4.2.2
+  - metaphlan=4.2.3
+  - bzip2
+  - pigz

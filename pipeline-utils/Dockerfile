@@ -31,9 +31,5 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER environment.yaml /tmp/env.yaml
 RUN micromamba install -y -n base -f /tmp/env.yaml && \
     micromamba clean --all --yes
 
-# Default command
-# CMD ["bash"]
-
-## docker build --no-cache -t bzip2sra:mamba-v1.0 .
-## docker tag bzip2sra:mamba-v1.0 public.ecr.aws/j5i5h1i5/bzip2sra:mamba-v1.0
-## docker push public.ecr.aws/j5i5h1i5/bzip2sra:mamba-v1.0
+# Intentionally track the current SRA Toolkit release.
+RUN /opt/sratools/bin/fasterq-dump --version
