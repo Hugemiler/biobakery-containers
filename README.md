@@ -175,22 +175,28 @@ Docker containers are managed by the docker daemon,
 rather than having absolute paths.
 Assuming the docker daemon is running,
 
-1. Navigate to the correct subdirectory of this repo
+1. Navigate to this repo
 2. Build container
 3. (optional) Upload to registry
 
 For example,
 
 ```
-$ cd humann
-$ sudo docker build -t my-humann-build:v0.1 .
-$ docker tag my-humann-build:v0.1 public.ecr.aws/j5i5h1i5/my-humann-build:v0.1
-$ docker push public.ecr.aws/j5i5h1i5/my-humann-build:v0.1
+$ docker buildx -t my-biobakery-build:v0.1 .
+$ docker tag my-biobakery-build:v0.1 kescobo/my-biobakery-build:v0.1
+$ docker push my-biobakery-build:v0.1
+
 ```
 
-Here, `my-humann-build:v0.1` has 2 parts, the container name (eg `my-humann-build`)
+Here, `my-biobakery-build:v0.1` has 2 parts, the container name (eg `my-biobakery-build`)
 and the tag (`v0.1`).
 If you want to build with additional tags, you can, and they will be almost instantaneous.
+
+On Dockerhub, the tags have 2 parts themselves, eg `v4-v0.1`,
+where the first part `v4` is the biobakery tool versions for humann/metaphlan
+and the second part `v0.1` is the container version for this repo.
+At some point I should probably have different branches for managing
+the biobakery versions, but that's a problem for another day.
 
 To test locally, use eg
 
@@ -216,19 +222,30 @@ and `REPO_PATH` is the path to this repository.
 
 ## Running containers
 
-To run a biobakery program, use `singularity exec`. For example, to run `humann`,
+To run a biobakery program, use `docker run` or `singularity exec`. For example, to run `humann`,
+
+```sh
+$ docker run -it --rm my-biobakery-build humann --version
+```
+
+or
 
 ```sh
 $ singularity exec $CONTAINER_PATH/humann.sif humann $ARGS...
 ```
 
-I created a shell script and aliased it to `/usr/local/bin/humann`:
+But this is pretty annoying, so you can also create and shell script
+and alias or symlink it to something in your `$PATH`, for example`/usr/local/bin/humann`:
 
 ```sh
 #!/bin/sh
 
 singularity exec /murray/containers/humann.sif humann "$@"
 ```
+
+then `alias humann=/usr/local/bin/humann` or
+`ln -s /usr/local/bin/humann ~/.local/human`
+
 
 Mounting additional files systems
 
