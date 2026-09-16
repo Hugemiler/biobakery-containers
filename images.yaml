@@ -1,0 +1,153 @@
+# Canonical inventory for every image built by this repository.
+# See README.md for commands, examples, and the complete publishing workflow.
+#
+# INVENTORY FORMAT
+#
+# `images` maps a stable inventory ID to one image build. The ID is used as the
+# individual Make target and Apptainer filename; it is not the registry name.
+# For example, `make metaphlan-4` builds `metaphlan-4`, and
+# `make apptainer-metaphlan-4` writes `metaphlan-4.sif`.
+#
+# Required fields:
+#
+#   repository: Registry repository name. Variants of the same software should
+#               share it, e.g. metaphlan-3 and metaphlan-4 both use metaphlan.
+#   version:    Release version of this container image, quoted as a string.
+#               It may mirror one application version, use calendar versioning
+#               for a toolbox, or follow another project-defined scheme. Use
+#               null for a draft that has no image release version yet; null
+#               produces a `dev-rN` tag.
+#   revision:   Positive integer identifying our packaging revision. Increment
+#               it when the recipe changes without changing the software
+#               version. Version 4.2.2 revision 2 becomes `4.2.2-r2`.
+#   context:    Repository-relative Docker build context containing Dockerfile.
+#   aliases:    Mutable convenience tags. They are never built or pushed by
+#               default and are published only by `make push-aliases`.
+#
+# Optional build and validation fields:
+#
+#   package:          For a single-application Conda image, require
+#                     context/environment.yaml to pin `package=version`. Do not
+#                     use this for bundles merely to satisfy the schema.
+#   version_arg:      Dockerfile ARG that receives `version` during the build.
+#                     Validation also checks that the ARG is declared.
+#   intended_version: Planned image version for an unversioned draft.
+#                     Informational only;
+#                     it does not make the image releasable or change its tag.
+#
+# TAG MODEL
+#
+# The canonical tag is `<version>-r<revision>` and identifies one container
+# recipe, e.g. `kneaddata:0.12.1-r1` or `pipeline-utils:2026.08-r1`.
+# Aliases are project policy, not a required version hierarchy. Examples are:
+#
+#   `0.12.1`  newest packaging revision for image release 0.12.1
+#   `0.12`    optional moving release-line alias
+#   `latest`  repository's recommended/default release
+#   `stable`  optional explicitly designated stable release
+#
+# Only one entry in a repository may own a given alias. `latest` and `stable`
+# are not assigned automatically. Avoid `release`: every canonical version is
+# already a release, and the tag's meaning would be ambiguous.
+#
+# SYNTAX AND VALIDATION
+#
+# Run `make images` to inspect the inventory and `make validate` after edits.
+# Values must use JSON-compatible YAML scalars: quote strings, use null for no
+# version, write revisions as integers, and write aliases as inline lists such
+# as ["4", "latest"]. Nested field values are intentionally unsupported so the
+# inventory can be parsed with Python's standard library and no PyYAML install.
+
+images:
+  pipeline-utils:
+    repository: "pipeline-utils"
+    version: "2026.08"
+    revision: 1
+    context: "pipeline-utils"
+    aliases: ["2026", "latest"]
+
+  halla-0820:
+    repository: "halla"
+    version: "0.8.20"
+    revision: 1
+    context: "halla/0.8.20"
+    aliases: ["0.8", "latest"]
+
+  omixer_rpm:
+    repository: "omixer-rpm"
+    version: "1.1"
+    revision: 1
+    context: "omixer_rpm"
+    aliases: ["1", "latest"]
+
+  kneaddata-0121:
+    repository: "kneaddata"
+    version: "0.12.1"
+    revision: 1
+    context: "kneaddata/0.12.1"
+    aliases: ["0.12", "latest"]
+    package: "kneaddata"
+
+  metaphlan-31:
+    repository: "metaphlan"
+    version: "3.1"
+    revision: 1
+    context: "metaphlan/3"
+    aliases: ["3", "3.1"]
+    package: "metaphlan"
+
+  metaphlan-422:
+    repository: "metaphlan"
+    version: "4.2.2"
+    revision: 1
+    context: "metaphlan/4.2.2"
+    aliases: ["4.2.2"]
+    package: "metaphlan"
+
+  metaphlan-423:
+    repository: "metaphlan"
+    version: "4.2.3"
+    revision: 1
+    aliases: ["4.2.3"]
+    context: "metaphlan/4.2.3"
+    package: "metaphlan"
+
+  metaphlan-424:
+    repository: "metaphlan"
+    version: "4.2.4"
+    revision: 1
+    aliases: ["4.2.4"]
+    context: "metaphlan/4.2.4"
+    package: "metaphlan"
+
+  metaphlan-425:
+    repository: "metaphlan"
+    version: "4.2.5"
+    revision: 1
+    aliases: ["4.2.5"]
+    context: "metaphlan/4.2.5"
+    package: "metaphlan"
+
+  metaphlan-426:
+    repository: "metaphlan"
+    version: "4.2.6"
+    revision: 1
+    context: "metaphlan/4.2.6"
+    aliases: ["4.2", "4", "4.2.6", "latest"]
+    package: "metaphlan"
+
+  humann-3:
+    repository: "humann"
+    version: "3.7"
+    revision: 1
+    context: "humann/3.7.0"
+    aliases: ["3", "3.7"]
+    package: "humann"
+
+  humann-4:
+    repository: "humann"
+    version: "4.0.0"
+    revision: 1
+    context: "humann/4.0.0a"
+    aliases: ["4", "4.0", "latest"]
+    package: "humann"

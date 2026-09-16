@@ -1,0 +1,11 @@
+name: base
+channels:
+  - bioconda
+  - conda-forge
+  - biobakery
+dependencies:
+  - python=3.8
+  - procps-ng
+  - metaphlan=4.2.4
+  - bzip2
+  - pigz

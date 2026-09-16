@@ -1,0 +1,22 @@
+name: base
+channels:
+  - conda-forge
+dependencies:
+  # Python + scientific stack
+  - python=3.10
+  - pip
+  - numpy>=1.19.0
+  - scipy>=1.5.1
+  - pandas>=1.0.5
+  - matplotlib>=3.5.3
+  - scikit-learn>=0.23.1
+  - seaborn>=0.10.1
+  - statsmodels>=0.11.1
+  - tqdm>=4.50.2
+  - jenkspy>=0.1.5
+  - PyYAML>=5.4
+  - setuptools<81
+
+  # R & rpy2: install from conda-forge to avoid any compilation
+  - r-base=4.4
+  - rpy2>=3.5,<3.7
