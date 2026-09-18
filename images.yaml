@@ -59,12 +59,8 @@
 # inventory can be parsed with Python's standard library and no PyYAML install.
 
 images:
-  pipeline-utils:
-    repository: "pipeline-utils"
-    version: "2026.08"
-    revision: 1
-    context: "pipeline-utils"
-    aliases: ["2026", "latest"]
+
+  # HAllA
 
   halla-0820:
     repository: "halla"
@@ -73,12 +69,25 @@ images:
     context: "halla/0.8.20"
     aliases: ["0.8", "latest"]
 
-  omixer_rpm:
-    repository: "omixer-rpm"
-    version: "1.1"
+  # HUMAnN
+
+  humann-370:
+    repository: "humann"
+    version: "3.7"
     revision: 1
-    context: "omixer_rpm"
-    aliases: ["1", "latest"]
+    context: "humann/3.7.0"
+    aliases: ["3", "3.7"]
+    package: "humann"
+
+  humann-400a:
+    repository: "humann"
+    version: "4.0.0"
+    revision: 1
+    context: "humann/4.0.0a"
+    aliases: ["4", "4.0", "4.0.0a", "latest"]
+    package: "humann"
+
+  # KneadData
 
   kneaddata-0121:
     repository: "kneaddata"
@@ -88,12 +97,38 @@ images:
     aliases: ["0.12", "latest"]
     package: "kneaddata"
 
+  # MetaPhlAn
+
   metaphlan-31:
     repository: "metaphlan"
     version: "3.1"
     revision: 1
     context: "metaphlan/3"
     aliases: ["3", "3.1"]
+    package: "metaphlan"
+
+  metaphlan-410:
+    repository: "metaphlan"
+    version: "4.1.0"
+    revision: 1
+    context: "metaphlan/4.1.0"
+    aliases: ["4.1.0"]
+    package: "metaphlan"
+
+  metaphlan-411:
+    repository: "metaphlan"
+    version: "4.1.1"
+    revision: 1
+    context: "metaphlan/4.1.1"
+    aliases: ["4.1.1"]
+    package: "metaphlan"
+
+  metaphlan-412:
+    repository: "metaphlan"
+    version: "4.1.2"
+    revision: 1
+    context: "metaphlan/4.1.2"
+    aliases: ["4.1", "4.1.2"]
     package: "metaphlan"
 
   metaphlan-422:
@@ -136,18 +171,20 @@ images:
     aliases: ["4.2", "4", "4.2.6", "latest"]
     package: "metaphlan"
 
-  humann-3:
-    repository: "humann"
-    version: "3.7"
-    revision: 1
-    context: "humann/3.7.0"
-    aliases: ["3", "3.7"]
-    package: "humann"
+  # Omixer-RPM (external)
 
-  humann-4:
-    repository: "humann"
-    version: "4.0.0"
+  omixer_rpm:
+    repository: "omixer-rpm"
+    version: "1.1"
     revision: 1
-    context: "humann/4.0.0a"
-    aliases: ["4", "4.0", "latest"]
-    package: "humann"
+    context: "omixer_rpm"
+    aliases: ["1", "latest"]
+
+  # Pipeline Utilities
+
+  pipeline-utils:
+    repository: "pipeline-utils"
+    version: "2026.08"
+    revision: 1
+    context: "pipeline-utils"
+    aliases: ["2026", "latest"]
