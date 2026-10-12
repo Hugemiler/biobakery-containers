@@ -40,14 +40,24 @@ def main():
     parser.add_argument('--artifact-home', default='dist')
     parser.add_argument('--archive-tool', default='scripts/archive_image.py')
     parser.add_argument('--aws-db-profile', default='')
+    parser.add_argument('--local-database-source')
     args = parser.parse_args()
     images, _ = load(args.inventory)
     image = images[args.id]
     tag = args.tag or image_tag(image)
     ref = f"{image['repository']}:{tag}"
     source = image.get('database_source')
+    local_db_path = Path(args.local_database_source).expanduser().resolve()
+    if not local_db_path.is_dir():
+        raise RuntimeError(
+            f'BUILD_LOCAL_DATABASE_SOURCE={local_db_path} is not a directory; '
+            'every build requires the named databases context. '
+            'Set BUILD_LOCAL_DATABASE_SOURCE to an existing directory.'
+        )
     creds = preflight(args.aws_db_profile) if source == 's3-private' else None
-    command = ['docker', 'build', '-t', ref, '-f', f"{image['context']}/Dockerfile"]
+    command = ['docker', 'buildx', 'build', '--load',
+               '--build-context', f'databases={local_db_path}',
+               '-t', ref, '-f', f"{image['context']}/Dockerfile"]
     if image.get('version_arg'):
         command += ['--build-arg', f"{image['version_arg']}={image.get('version', '')}"]
     if image.get('version'):
