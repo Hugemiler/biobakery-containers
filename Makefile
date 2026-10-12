@@ -13,12 +13,10 @@ REGISTRY_ghcr := ghcr.io/$(GHCR_HANDLE)
 REGISTRY_ecr := $(ECR_REPO)
 # ECR_REPO is the full namespace, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery
 ECR_HOST = $(firstword $(subst /, ,$(ECR_REPO)))
-# Place in the system to look for LOCAL databases
-BUILD_LOCAL_DATABASE_SOURCE ?= /murray/databases
 
 ### STORAGE SETTINGS BLOCK
-CONTAINER_HOME ?= $(HOME)/containers
-DATABASE_HOME ?= $(HOME)/containers
+BUILD_LOCAL_CONTAINER_HOME ?= /murray/containers
+BUILD_LOCAL_DATABASE_SOURCE ?= /murray/databases
 
 ### INVENTORY SETTINGS BLOCK
 PYTHON ?= python3
