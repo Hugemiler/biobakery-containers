@@ -16,7 +16,9 @@ ECR_HOST = $(firstword $(subst /, ,$(ECR_REPO)))
 
 ### STORAGE SETTINGS BLOCK
 BUILD_LOCAL_CONTAINER_HOME ?= /murray/containers
+export BUILD_LOCAL_CONTAINER_HOME
 BUILD_LOCAL_DATABASE_SOURCE ?= /murray/databases
+export BUILD_LOCAL_DATABASE_SOURCE
 
 ### INVENTORY SETTINGS BLOCK
 PYTHON ?= python3
@@ -69,7 +71,7 @@ build: $(IMAGE_IDS)
 $(IMAGE_IDS): validate
 	@$(PYTHON) scripts/build_image.py --inventory "$(INVENTORY)" --id "$@" \
 		--tag "$(TAG)" --artifact-home "$(ARTIFACT_HOME)" \
-		--aws-db-profile "$(AWS_DB_PROFILE)" --archive-tool "$(ARCHIVE_TOOL)"
+		--aws-db-profile "$(AWS_DB_PROFILE)" --local-database-source "$(BUILD_LOCAL_DATABASE_SOURCE)" --archive-tool "$(ARCHIVE_TOOL)"
 
 # The two registry destinations are independent. Neither build nor save publishes.
 push: push-ghcr push-aws

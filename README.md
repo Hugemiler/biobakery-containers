@@ -133,14 +133,14 @@ By default, archive bundles are placed under
 `dist/<inventory-id>/<canonical-tag>/` with:
 
 ```text
-image.tar
-image.tar.sha256
+humann_4.0.0-r1.tar
+humann_4.0.0-r1.tar.sha256
 inspect.json
 manifest.json
 ```
 
-`image.tar` is generated with `docker image save` rather than `docker export`.
-`image.tar.sha256` verifies the exact exported bytes, and `manifest.json`
+`<repository>_<canonical-tag>.tar` is generated with `docker image save` rather than `docker export`.
+The matching `.tar.sha256` file verifies the exact exported bytes, and `manifest.json`
 records the image ID, platform, labels, archive checksum, and any available
 registry digests. A local-only image normally has no registry `RepoDigest`.
 Use `ARTIFACT_HOME=/path` to choose another output location.
@@ -197,7 +197,7 @@ The catalog's `package` sanity check reads environment YAML text; it is not
 an end-to-end runtime version test, nor does it verify a source patch or
 actually test whether an embedded database works. A Docker build and an
 application-level smoke test remain necessary. Versioned image tags can be
-rebuilt, so the `image.tar.sha256` identifies the precise distributed file.
+rebuilt, so the named `.tar.sha256` file identifies the precise distributed file.
 
 ### Manual Docker builds
 
@@ -415,3 +415,55 @@ currently uses local files, public HTTPS, or private S3. Set this field on each
 applicable image after inspecting its Dockerfile. Actual Docker builds,
 private S3 access, and ECR publishing still require integration tests with
 real recipes and AWS profiles.
+
+
+### Canonical additional build context for databases
+
+Every `make build` and individual image build passes the same named additional
+Docker Buildx context, regardless of `database_source`:
+
+```sh
+make build BUILD_LOCAL_DATABASE_SOURCE=/murray/databases
+```
+
+This becomes `docker buildx build --load --build-context databases=/murray/databases ...`.
+The primary build context is unchanged. Dockerfiles may use both contexts:
+
+```dockerfile
+COPY environment.yaml /tmp/environment.yaml
+COPY --from=databases /kneaddata/hg37dec.tar.gz /tmp/database.tar.gz
+```
+
+The host directory must exist even when a Dockerfile does not use it; an empty
+directory is sufficient for builds without local databases. If it does not
+exist, the builder exits before Docker runs. Database paths are interpreted
+relative to this named context. The `database_source` field continues to govern
+private S3 credential preflight only. `--load` makes the Buildx output available
+to subsequent local tagging, archiving, and publication commands.
+
+
+### File-preserving image archives
+
+`save: true` enables an archive bundle following a successful canonical build.
+`make archive` checks the same bundles without rebuilding images. Files are
+placed at `dist/<inventory-id>/<canonical-tag>/` (set `ARTIFACT_HOME` to change
+`dist`). Each bundle contains:
+
+```text
+humann_4.0.0-r1.tar
+humann_4.0.0-r1.tar.sha256
+inspect.json
+manifest.json
+```
+
+A complete existing bundle is **skipped without inspecting the image or reading
+the TAR**, even if the local image has subsequently changed. An incomplete
+bundle fails with an explanation and is never automatically repaired. New bundles
+are prepared in a sibling staging directory and renamed into place only on
+success. To intentionally regenerate an archive, **remove its entire output
+directory first** (and make sure sufficient disk space is available), then run
+`make archive` or rebuild the canonical image. `TAG` overrides are never archived.
+
+Checksums can be checked explicitly with `cd <bundle-dir> && sha256sum -c
+<repository>_<canonical-tag>.tar.sha256`. Skipping an existing bundle does not
+validate its checksum; use `sha256sum -c` when integrity verification is needed.
