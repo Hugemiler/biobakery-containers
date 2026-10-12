@@ -5,9 +5,9 @@ Heavily inspired by https://github.com/tvatanen/microbiome_pipelines
 
 ## Building containers
 
-The canonical image inventory is [`images.yaml`](images.yaml). The Makefile
+The canonical image catalog is the collection of files under [`image-catalog/`](image-catalog/). The Makefile
 derives its image targets, registry names, canonical tags, aliases, Docker build
-contexts, and Apptainer sources from this file. The inventory describes
+contexts, and Apptainer sources from these files. The inventory describes
 container images; it does not assume that an image corresponds to one Python,
 Conda, or other software package.
 
@@ -17,157 +17,189 @@ Display the inventory as a table or validate it without building anything:
 
 ```sh
 make images
+make images PACKAGE=humann  # filter by repository or package
+make catalog-json           # merged machine-readable catalog
 make validate
 ```
 
 Validation checks required fields, names and tag syntax, duplicate registry
 references, build contexts and Dockerfiles, plus any optional `package` or
-`version_arg` consistency checks an entry declares. It also rejects aliases on
-unversioned images and conflicting aliases within one repository.
+`version_arg` consistency checks an entry declares. It also rejects aliases
+for unpublished images and conflicting aliases within one repository.
 
 The inventory uses a deliberately restricted YAML subset so it can be parsed
 with the Python standard library. Quote all strings, use JSON-style inline
-lists such as `["4", "latest"]`, use integer revisions, and use `null` for an
-unversioned draft. Nested field values are not supported.
+lists such as `["4", "latest"]`, use integer revisions, and omit `version` for an unversioned draft.
+Nested field values are not supported.
+
+### Multi-file catalog layout
+
+Each software family has a separate catalog file, such as
+`image-catalog/humann.yaml` or `image-catalog/metaphlan.yaml`. Each file contains
+its own `images:` mapping, using the **unchanged** per-image field schema.
+All catalog entries are merged and globally validated: image IDs, canonical
+references, and aliases must remain unique across files as appropriate.
+`context` paths always resolve relative to the **repository root**, never to
+individual YAML files. A single-file catalog can still be tested with
+`python3 scripts/image_inventory.py --inventory /path/to/test.yaml validate`.
+The `make catalog-json` command exports the globally validated catalog to stdout
+for future read-only user interfaces.
 
 ### Inventory fields
 
-Each key directly below `images` is a stable inventory ID:
+Each key under `images` is a unique, stable inventory ID used for Make targets
+and SIF filenames. The repository's normal image and its database-bundled image
+are **different entries** but can have the same `repository`, `version`, and
+`package`. Each entry points to its own directory and Dockerfile.
 
 ```yaml
 images:
-  metaphlan-4:
-    repository: "metaphlan"
-    version: "4.2.2"
-    package: "metaphlan"
+  humann-400a:
+    repository: "humann"
+    version: "4.0.0"
     revision: 1
-    context: "metaphlan/4"
-    aliases: ["4"]
-```
+    context: "humann/4.0.0a-dev/nodb"
+    aliases: ["4", "4.0", "4.0.0a", "latest"]
+    package: "humann"
 
-The ID is used for the individual Make target and Apptainer filename. In this
-example, it provides `make metaphlan-4`, `make apptainer-metaphlan-4`, and
-`metaphlan-4.sif`. It does not become the registry repository name.
+  humann-400a-chocophlan:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-chocophlan-2019.01"
+    revision: 1
+    context: "humann/4.0.0a-dev/chocophlan-2019.01"
+    aliases: []
+    package: "humann"
+    push_ghcr: false
+    push_aws: false
+    save: true
+```
 
 | Field | Required | Purpose |
 | --- | --- | --- |
-| `repository` | Yes | Container registry repository. Multiple versions of the same software share this value, so both MetaPhlAn entries publish under `metaphlan`. |
-| `version` | Yes | Release version of the container image as a quoted string. It may mirror an application version, represent a multi-tool bundle, use calendar versioning, or follow another project-defined scheme. Use `null` for an unversioned draft. |
-| `revision` | Yes | Positive packaging revision. Increment it when the container recipe changes without creating a new image release. |
-| `context` | Yes | Repository-relative Docker build context containing a `Dockerfile`. |
-| `aliases` | Yes | Mutable tags promoted only by `make push-aliases`; use `[]` when none are wanted. |
-| `package` | No | Optional check for a single-application Conda image. The validator requires `context/environment.yaml` to contain an exact `package=version` pin. It is not appropriate or required for every image. |
-| `version_arg` | No | Optional Dockerfile `ARG` to which Make passes the image version, used when that version is also a build input. |
-| `intended_version` | No | Planned image version for an unversioned draft. It is informational and does not affect the generated tag. |
+| `repository` | Yes | Docker image repository (for example `humann`). |
+| `version` | No | Expected primary application version. For Conda images, `package` can validate its pin. |
+| `revision` | Yes | Positive, independent packaging revision for this canonical image variant. |
+| `context` | Yes | Build directory containing `Dockerfile` (and possibly `environment.yaml`). |
+| `aliases` | Yes | Human-friendly mutable registry tags; `[]` for none. |
+| `tag_base` | No | Canonical tag stem; defaults to `version`, or `dev` if there is no version. |
+| `push_ghcr` | No | Publish canonical image and selected aliases to GHCR. Defaults to `true` for backward compatibility. |
+| `push_aws` | No | Publish canonical image and selected aliases to AWS ECR. Defaults to `false`. |
+| `save` | No | Automatically archive after successful canonical builds. Defaults to `false`. |
+| `package` | No | Check `context/environment.yaml` contains the exact `package=version` pin. |
+| `version_arg` | No | Pass `version` as the specified Dockerfile `ARG`. |
+| `intended_version` | No | Informational version planned for an unversioned draft. |
 
-`package` and `version_arg` are independent, optional mechanisms. They are not
-the source of an image's identity and should only be declared when their checks
-accurately describe the build. For example:
+The inventory deliberately supports only shallow mappings and JSON-compatible
+scalar values; it is parsed with Python's standard library. Quote strings, use
+integer revisions, and write lists inline. Version is **not** an image uniqueness
+key. Within each repository, canonical tags and aliases must not collide.
 
-```yaml
-# Conda-backed: environment.yaml must contain metaphlan=4.2.2
-version: "4.2.2"
-package: "metaphlan"
+### Canonical tags and aliases
 
-# Docker-argument-backed: Dockerfile must declare ARG OMIXER_VERSION
-version: "1.1"
-version_arg: "OMIXER_VERSION"
-
-# Toolbox bundle: no single package owns the image version
-version: "2026.08"
-```
-
-An image may contain any number of packages, compiled programs, operating-system
-tools, or other components without declaring a primary package. Those component
-versions belong in the relevant environment, lock file, Dockerfile, or component
-manifest. The inventory version describes the released image as a whole.
-
-### Tags and aliases
-
-Canonical tags use `<software-version>-r<packaging-revision>`:
+Canonical tags are `<tag_base or version or dev>-r<revision>`. Examples:
 
 ```text
-ghcr.io/klepac-ceraj-lab/metaphlan:4.2.2-r1
+ghcr.io/klepac-ceraj-lab/humann:4.0.0-r1
+ghcr.io/klepac-ceraj-lab/humann:4.0.0-chocophlan-2019.01-r1
 ```
 
-The image version and packaging revision together identify the build. For a
-single-application image, the image version may match its application. For a
-bundle such as `pipeline-utils`, it can instead be a toolbox release such as
-`2026.08`. If a recipe changes without changing the image release, increment
-`revision`. An image with `version: null` receives a draft tag such as `dev-r1`
-and cannot declare release aliases.
+The aliases `4`, `4.0`, and `latest` are independently chosen conveniences.
+They are promoted **only** with `make push-aliases`, and they are allowed only
+when at least one push flag is true. To avoid claiming release aliases for an unversioned draft,
+set `aliases: []` unless that entry has an explicit `tag_base`.
 
-Aliases are intentionally mutable convenience references. A complete alias set
-for the currently recommended KneadData release could be:
+### Building, saving, and publishing
+
+```sh
+make images            # print complete catalog
+make images PACKAGE=metaphlan  # only MetaPhlAn
+make catalog-json > catalog.json  # generated export, not authoritative
+make validate          # check metadata and paths (requires all listed contexts)
+make humann-400a        # build one normal image
+make humann-400a-chocophlan   # build DB-bearing image, then save its archive
+make build             # build all images, archive those with save: true
+make archive-humann-400a-chocophlan  # archive an already-built canonical image
+make push              # publish to selected GHCR and ECR destinations
+make push-ghcr         # publish GHCR-eligible canonical images only
+make push-aws          # publish ECR-eligible canonical images only
+make push-aliases      # first push canonicals, then promote their aliases
+```
+
+`make build` never pushes. `make push` never builds. Setting `TAG=test` on a
+single build is for local experiments and intentionally skips auto-archiving;
+`push` and `archive` require canonical tags. `make archive` processes all entries
+with `save: true` using already-built images.
+
+By default, archive bundles are placed under
+`dist/<inventory-id>/<canonical-tag>/` with:
+
+```text
+image.tar
+image.tar.sha256
+inspect.json
+manifest.json
+```
+
+`image.tar` is generated with `docker image save` rather than `docker export`.
+`image.tar.sha256` verifies the exact exported bytes, and `manifest.json`
+records the image ID, platform, labels, archive checksum, and any available
+registry digests. A local-only image normally has no registry `RepoDigest`.
+Use `ARTIFACT_HOME=/path` to choose another output location.
+
+For DB-bearing Dockerfiles, use versioned HTTPS archives, verify their
+**input** checksum inside the Docker build, and place the data at a documented
+path (for example `/Databases`). Container archive checksums are a separate
+verification of the **output**. The Makefile does not interpret database URLs:
+those details remain plainly visible in each Dockerfile.
+
+### GHCR / ECR publication policy
+
+Two independent optional boolean fields control registry pushes:
 
 ```yaml
-aliases: ["0.12.1", "0.12", "latest"]
+push_ghcr: true
+push_aws: false
+save: true
 ```
 
-These tags mean:
+All four combinations are supported: GHCR only, ECR only, both, or neither.
+`save` is independent and still produces the Docker archive and provenance bundle.
+An image with both push flags false should use `aliases: []`.
 
-- `0.12.1`: newest packaging revision for KneadData 0.12.1.
-- `0.12`: optional moving alias for the 0.12 release line.
-- `latest`: recommended/default KneadData release.
-- `stable`: optional alternative when a deliberately selected stable channel is useful.
+`make push` handles the selected registries without rebuilding. The local image
+reference is a local `repository:tag` image; for either registry destination,
+Make tags the same local image before pushing. `make push-aliases` promotes
+aliases separately in each selected registry. `make push-ghcr` and
+`make push-aws` limit publishing to one destination.
 
-Only one entry within a repository may own an alias such as `latest` or
-`stable`. Neither is assigned automatically. The tag `release` is discouraged
-because all canonical version tags represent releases and its moving meaning is
-otherwise unclear. Major, minor, and patch aliases are optional conventions,
-not assumptions made by the Makefile or validator.
+For GHCR, set `GHCR_HANDLE`, `GHCR_USER`, and `GHCR_PAT`. For ECR, set
+`ECR_REPO` to the registry namespace/prefix, e.g.
+`123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery`, plus `AWS_REGION`
+and optionally `AWS_PROFILE`. The ECR repositories under that prefix must
+already exist; this Makefile does not create them. An ECR push uses the Docker
+registry protocol, not an S3 upload.
 
-### Building and publishing
-
-Build every image or one inventory entry with:
-
-```sh
-make build
-make metaphlan-4
-```
-
-Set `TAG` only for a local experimental build override. Canonical tags are used
-by default:
+### Apptainer
 
 ```sh
-make metaphlan-4 TAG=test
-```
-
-`make push` deliberately rejects `TAG` overrides and always pushes the canonical
-inventory references. Before pushing, it verifies that every exact canonical
-tag exists locally and reports the corresponding build target when one is
-missing. Experimental tags therefore cannot be published accidentally through
-the inventory workflow.
-
-`make build` does not publish, and `make push` does not build. After building
-and setting the registry credentials in your environment, choose whether to
-publish only canonical tags or canonical tags plus aliases:
-
-```sh
-make build
-make push          # canonical tags only
-make push-aliases  # canonical tags, followed by configured aliases
-```
-
-`push-aliases` depends on `push`, then verifies each canonical image in the
-configured registry and uses Docker Buildx to create aliases directly from that
-remote manifest. It never pulls an image during promotion, so it cannot replace
-a newly built local canonical tag with an older remote image. The dependency
-guarantees that the current local canonical images are published before any
-mutable tag changes. After remote promotion, the corresponding local aliases
-are pointed at that already-verified local canonical image. It rejects `TAG`
-overrides so experimental builds cannot accidentally be promoted. No `latest`
-tag is produced unless it appears explicitly in the inventory.
-
-Build Apptainer files from the canonical remote tags with:
-
-```sh
+make apptainer-metaphlan-425
+make apptainer-metaphlan-425-db
 make apptainer
-make apptainer-metaphlan-4
 ```
 
-The files are written under `CONTAINER_HOME` (default: `$HOME/containers`) and
-retain their inventory IDs, such as `metaphlan-4.sif`.
+Apptainer uses `docker-daemon://` for every entry, so it does not depend
+on which registry (if any) the image was published to. The canonical Docker
+image must first be built locally. SIFs are placed under `CONTAINER_HOME`
+(default `$HOME/containers`) and named after inventory IDs.
+
+### Limitations
+
+The catalog's `package` sanity check reads environment YAML text; it is not
+an end-to-end runtime version test, nor does it verify a source patch or
+actually test whether an embedded database works. A Docker build and an
+application-level smoke test remain necessary. Versioned image tags can be
+rebuilt, so the `image.tar.sha256` identifies the precise distributed file.
 
 ### Manual Docker builds
 
@@ -286,3 +318,22 @@ To simplify this, you can create a shell script, for example on `hopper`:
 
 singularity exec --bind $PWD:$PWD --bind /murray:/murray /murray/containers/metaphlan.sif metaphlan "$@" --bowtie2db /murray/databases/metaphlan
 ```
+
+### Local image identity and independent registries
+
+`make build` always produces `repository:<canonical-tag>` in the local Docker daemon.
+`REPO_TYPE` is not used. `make push-ghcr` and `make push-aws` retag the same
+local image and push only entries enabled by `push_ghcr` or `push_aws`.
+`make push` invokes both. `make push-aliases` promotes configured aliases
+independently in each enabled registry. Neither publishing nor archiving rebuilds
+images. `make archive` and `make apptainer` also use the local image.
+
+**Known verification boundary:** Docker builds, uploads to authenticated registries,
+and Apptainer conversion must be exercised in an environment with those services.
+
+
+### Offline catalog regression tests
+
+Run `python3 tests/test_catalog.py` to check multi-file loading, CLI commands,
+canonical reference collisions, and duplicate IDs using temporary Dockerfile
+fixtures. This test does not build Docker images or contact GHCR/ECR.
