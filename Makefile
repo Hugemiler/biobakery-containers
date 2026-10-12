@@ -7,11 +7,13 @@ GHCR_PAT ?=
 AWS_REGION ?= us-east-1
 AWS_PROFILE ?= default
 ECR_REPO ?=
-# General registry settings
-REPO_TYPE ?= ghcr
+# Registry destinations (publication only, never used as local build identity)
 REGISTRY_ghcr := ghcr.io/$(GHCR_HANDLE)
 REGISTRY_ecr := $(ECR_REPO)
-REGISTRY := $(REGISTRY_$(REPO_TYPE))
+# ECR_REPO is the full namespace, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery
+ECR_HOST = $(firstword $(subst /, ,$(ECR_REPO)))
+# Place in the system to look for LOCAL databases
+BUILD_LOCAL_DATABASE_SOURCE ?= /murray/databases
 
 ### STORAGE SETTINGS BLOCK
 CONTAINER_HOME ?= $(HOME)/containers
@@ -19,40 +21,46 @@ DATABASE_HOME ?= $(HOME)/containers
 
 ### INVENTORY SETTINGS BLOCK
 PYTHON ?= python3
-INVENTORY ?= images.yaml
+CATALOG_DIR ?= image-catalog
+INVENTORY ?= $(CATALOG_DIR)
 INVENTORY_TOOL := scripts/image_inventory.py
+ARCHIVE_TOOL := scripts/archive_image.py
+ARTIFACT_HOME ?= dist
 IMAGE_IDS := $(shell $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) ids 2>/dev/null)
 APPTAINER_TARGETS := $(IMAGE_IDS:%=apptainer-%)
+ARCHIVE_TARGETS := $(IMAGE_IDS:%=archive-%)
 
 # TAG overrides the canonical inventory tag for local/experimental builds.
 TAG ?=
 
-.PHONY: all images validate login build push push-aliases apptainer \
-        apptainer-login install postinstall clean $(IMAGE_IDS) \
-        $(APPTAINER_TARGETS)
+.PHONY: all images catalog-json validate login login-ghcr login-aws build push push-ghcr push-aws \
+        push-aliases push-ghcr-aliases push-aws-aliases archive apptainer \
+        install postinstall clean $(IMAGE_IDS) \
+        $(APPTAINER_TARGETS) $(ARCHIVE_TARGETS)
 
 all: build
 
 images: validate
-	@$(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) list
+	@$(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) list $(if $(PACKAGE),--package $(PACKAGE),)
+
+catalog-json: validate
+	@$(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) json
 
 validate:
-	@case "$(REPO_TYPE)" in \
-		ghcr|ecr) ;; \
-		*) echo "REPO_TYPE must be 'ghcr' or 'ecr'" >&2; exit 1 ;; \
-	esac
 	@$(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) validate
 
-login: validate
-ifeq ($(REPO_TYPE),ghcr)
-	@[ -n "$${GHCR_USER:-}" ] || (echo "GHCR_USER environment variable not found"; exit 1)
-	@[ -n "$${GHCR_PAT:-}" ] || (echo "GHCR_PAT environment variable not found"; exit 1)
-	@echo "$${GHCR_PAT}" | docker login ghcr.io -u "$${GHCR_USER}" --password-stdin
-else ifeq ($(REPO_TYPE),ecr)
-	@[ -n "$(ECR_REPO)" ] || (echo "ECR_REPO environment variable not found"; exit 1)
-	@aws ecr get-login-password --region "$(AWS_REGION)" --profile "$(AWS_PROFILE)" \
-	| docker login --username AWS --password-stdin "$(REGISTRY)"
-endif
+# Login is never required for a destination with no eligible images.
+login: login-ghcr login-aws
+
+login-ghcr: validate
+	@[ -n "$${GHCR_USER:-}" ] || { echo "Set GHCR_USER" >&2; exit 1; }
+	@[ -n "$${GHCR_PAT:-}" ] || { echo "Set GHCR_PAT" >&2; exit 1; }
+	@printf '%s' "$${GHCR_PAT}" | docker login ghcr.io -u "$${GHCR_USER}" --password-stdin
+
+login-aws: validate
+	@[ -n "$(ECR_REPO)" ] || { echo "Set ECR_REPO (full AWS registry namespace)" >&2; exit 1; }
+	@aws ecr get-login-password --region "$(AWS_REGION)" --profile "$(AWS_PROFILE)" | \
+		docker login --username AWS --password-stdin "$(ECR_HOST)"
 
 build: $(IMAGE_IDS)
 
@@ -66,66 +74,97 @@ $(IMAGE_IDS): validate
 	set --; \
 	if [ -n "$$version_arg" ]; then set -- "$$@" --build-arg "$$version_arg=$$version"; fi; \
 	if [ -n "$$version" ]; then set -- "$$@" --label "org.opencontainers.image.version=$$version"; fi; \
-	echo "Building $(REGISTRY)/$$repository:$$tag from $$context"; \
-	docker build "$$@" -t "$(REGISTRY)/$$repository:$$tag" -f "$$context/Dockerfile" "$$context"
+	echo "Building $$repository:$$tag from $$context"; \
+	docker build "$$@" -t "$$repository:$$tag" -f "$$context/Dockerfile" "$$context" || exit 1; \
+	if [ "$(TAG)" = "" ] && [ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" save )" = "true" ]; then \
+		$(PYTHON) $(ARCHIVE_TOOL) --image "$$repository:$$tag" --id "$@" --tag "$$tag" --output "$(ARTIFACT_HOME)/$@/$$tag" || exit 1; \
+	fi
 
-push: login
-	@[ -z "$(TAG)" ] || (echo "TAG overrides are for local builds and cannot be used with push" >&2; exit 1)
-	@for image_id in $(IMAGE_IDS); do \
+# The two registry destinations are independent. Neither build nor save publishes.
+push: push-ghcr push-aws
+
+push-ghcr: validate
+	@[ -z "$(TAG)" ] || { echo "TAG overrides cannot be pushed" >&2; exit 1; }
+	@selected=0; for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_ghcr )" = "true" ] || continue; \
+		selected=1; break; \
+	done; \
+	if [ "$$selected" = 0 ]; then echo "No GHCR images selected"; exit 0; fi; \
+	[ -n "$${GHCR_USER:-}" ] && [ -n "$${GHCR_PAT:-}" ] || { echo "Set GHCR_USER and GHCR_PAT" >&2; exit 1; }; \
+	printf '%s' "$${GHCR_PAT}" | docker login ghcr.io -u "$${GHCR_USER}" --password-stdin || exit 1; \
+	for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_ghcr )" = "true" ] || continue; \
 		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
-		if ! docker image inspect "$(REGISTRY)/$$repository:$$tag" >/dev/null 2>&1; then \
-			echo "Canonical local image $(REGISTRY)/$$repository:$$tag is missing" >&2; \
-			echo "Build it first with: make $$image_id" >&2; \
-			exit 1; \
-		fi; \
-		echo "Pushing $(REGISTRY)/$$repository:$$tag"; \
-		docker push "$(REGISTRY)/$$repository:$$tag" || exit; \
+		src="$$repository:$$tag"; dst="$(REGISTRY_ghcr)/$$repository:$$tag"; \
+		docker image inspect "$$src" >/dev/null 2>&1 || { echo "Missing $$src; build $$image_id first" >&2; exit 1; }; \
+		docker tag "$$src" "$$dst" && docker push "$$dst" || exit 1; \
 	done
 
-# Mutable aliases (for example metaphlan:4) are deliberately opt-in.
-push-aliases: push
-	@[ -z "$(TAG)" ] || (echo "TAG overrides cannot be used with push-aliases" >&2; exit 1)
+push-aws: validate
+	@[ -z "$(TAG)" ] || { echo "TAG overrides cannot be pushed" >&2; exit 1; }
+	@selected=0; for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_aws )" = "true" ] || continue; \
+		selected=1; break; \
+	done; \
+	if [ "$$selected" = 0 ]; then echo "No ECR images selected"; exit 0; fi; \
+	[ -n "$(ECR_REPO)" ] || { echo "Set ECR_REPO" >&2; exit 1; }; \
+	aws ecr get-login-password --region "$(AWS_REGION)" --profile "$(AWS_PROFILE)" | docker login --username AWS --password-stdin "$(ECR_HOST)" || exit 1; \
+	for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_aws )" = "true" ] || continue; \
+		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
+		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
+		src="$$repository:$$tag"; dst="$(REGISTRY_ecr)/$$repository:$$tag"; \
+		docker image inspect "$$src" >/dev/null 2>&1 || { echo "Missing $$src; build $$image_id first" >&2; exit 1; }; \
+		docker tag "$$src" "$$dst" && docker push "$$dst" || exit 1; \
+	done
+
+# Alias promotion is opt-in and operates separately in each selected registry.
+push-aliases: push-ghcr-aliases push-aws-aliases
+
+push-ghcr-aliases: push-ghcr
 	@for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_ghcr )" = "true" ] || continue; \
 		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
 		aliases="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" aliases )"; \
-		if [ -n "$$aliases" ]; then \
-			echo "Checking canonical image $(REGISTRY)/$$repository:$$tag"; \
-			docker buildx imagetools inspect "$(REGISTRY)/$$repository:$$tag" >/dev/null || { \
-				echo "Canonical image is not published; run 'make push' before 'make push-aliases'" >&2; \
-				exit 1; \
-			}; \
-		fi; \
 		for alias in $$aliases; do \
-			echo "Promoting $(REGISTRY)/$$repository:$$tag to :$$alias"; \
-			docker buildx imagetools create \
-				--tag "$(REGISTRY)/$$repository:$$alias" \
-				"$(REGISTRY)/$$repository:$$tag" || exit 1; \
-			docker tag "$(REGISTRY)/$$repository:$$tag" \
-				"$(REGISTRY)/$$repository:$$alias" || exit 1; \
+			docker buildx imagetools create --tag "$(REGISTRY_ghcr)/$$repository:$$alias" "$(REGISTRY_ghcr)/$$repository:$$tag" || exit 1; \
 		done; \
 	done
 
-apptainer: apptainer-login $(APPTAINER_TARGETS)
+push-aws-aliases: push-aws
+	@for image_id in $(IMAGE_IDS); do \
+		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_aws )" = "true" ] || continue; \
+		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
+		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
+		aliases="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" aliases )"; \
+		for alias in $$aliases; do \
+			docker buildx imagetools create --tag "$(REGISTRY_ecr)/$$repository:$$alias" "$(REGISTRY_ecr)/$$repository:$$tag" || exit 1; \
+		done; \
+	done
 
-apptainer-login: validate
-ifeq ($(REPO_TYPE),ghcr)
-	@[ -n "$${GHCR_USER:-}" ] || (echo "GHCR_USER environment variable not found"; exit 1)
-	@[ -n "$${GHCR_PAT:-}" ] || (echo "GHCR_PAT environment variable not found"; exit 1)
-	@echo "$${GHCR_PAT}" | apptainer registry login --username "$${GHCR_USER}" \
-		--password-stdin docker://ghcr.io
-else ifeq ($(REPO_TYPE),ecr)
-	@echo "Apptainer ECR authentication is not configured" >&2; exit 1
-endif
+# Archive a canonical image already built locally. Never build or push it implicitly.
+archive: validate $(ARCHIVE_TARGETS)
 
+$(ARCHIVE_TARGETS): archive-%: validate
+	@[ -z "$(TAG)" ] || (echo "Archive requires canonical tags; omit TAG" >&2; exit 1)
+	@repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" repository )"; \
+	 tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" tag )"; \
+	 [ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" save )" = "true" ] || { echo "$*: save is false"; exit 0; }; \
+	 $(PYTHON) $(ARCHIVE_TOOL) --image "$$repository:$$tag" --id "$*" --tag "$$tag" --output "$(ARTIFACT_HOME)/$*/$$tag"
+
+apptainer: $(APPTAINER_TARGETS)
+
+# Use the already-built local image; works even for images published nowhere.
 $(APPTAINER_TARGETS): apptainer-%: validate
 	@repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" repository )"; \
-	tag="$(TAG)"; \
-	[ -n "$$tag" ] || tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" tag )"; \
-	mkdir -p "$(CONTAINER_HOME)"; \
-	echo "Building $(CONTAINER_HOME)/$*.sif from $(REGISTRY)/$$repository:$$tag"; \
-	apptainer build "$(CONTAINER_HOME)/$*.sif" "docker://$(REGISTRY)/$$repository:$$tag"
+	 tag="$(TAG)"; \
+	 [ -n "$$tag" ] || tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$*" tag )"; \
+	 ref="$$repository:$$tag"; \
+	 docker image inspect "$$ref" >/dev/null 2>&1 || { echo "Missing $$ref; build $* first" >&2; exit 1; }; \
+	 mkdir -p "$(CONTAINER_HOME)"; \
+	 apptainer build "$(CONTAINER_HOME)/$*.sif" "docker-daemon://$$ref"
 
 install: apptainer postinstall
 
