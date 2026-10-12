@@ -8,4 +8,4 @@ images:
     aliases: ["0.8", "latest"]
     push_ghcr: true
     push_aws: false
-    save: true
+    save: false
