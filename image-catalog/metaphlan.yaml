@@ -1,0 +1,110 @@
+# metaphlan image definitions. Context paths are repository-root relative.
+images:
+  metaphlan-31:
+    repository: "metaphlan"
+    version: "3.1"
+    revision: 1
+    context: "metaphlan/3.1/nodb"
+    aliases: ["3", "3.1"]
+    package: "metaphlan"
+
+  metaphlan-31-db:
+    repository: "metaphlan"
+    version: "3.1"
+    tag_base: "3.1-mpa_v31_201901"
+    revision: 1
+    context: "metaphlan/3.1/mpa_v31_201901"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  metaphlan-410:
+    repository: "metaphlan"
+    version: "4.1.0"
+    revision: 1
+    context: "metaphlan/4.1.0/nodb"
+    aliases: ["4.1.0"]
+    package: "metaphlan"
+
+  metaphlan-411:
+    repository: "metaphlan"
+    version: "4.1.1"
+    revision: 1
+    context: "metaphlan/4.1.1/nodb"
+    aliases: ["4.1.1"]
+    package: "metaphlan"
+
+  metaphlan-412:
+    repository: "metaphlan"
+    version: "4.1.2"
+    revision: 1
+    context: "metaphlan/4.1.2/nodb"
+    aliases: ["4.1", "4.1.2"]
+    package: "metaphlan"
+
+  metaphlan-412-db:
+    repository: "metaphlan"
+    version: "4.1.2"
+    tag_base: "4.1.2-mpa_vOct22_202403"
+    revision: 1
+    context: "metaphlan/4.1.2/mpa_vOct22_202403"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  metaphlan-422:
+    repository: "metaphlan"
+    version: "4.2.2"
+    revision: 1
+    context: "metaphlan/4.2.2"
+    aliases: ["4.2.2"]
+    package: "metaphlan"
+
+  metaphlan-423:
+    repository: "metaphlan"
+    version: "4.2.3"
+    revision: 1
+    context: "metaphlan/4.2.3"
+    aliases: ["4.2.3"]
+    package: "metaphlan"
+
+  metaphlan-424:
+    repository: "metaphlan"
+    version: "4.2.4"
+    revision: 1
+    context: "metaphlan/4.2.4"
+    aliases: ["4.2.4"]
+    package: "metaphlan"
+
+  metaphlan-425:
+    repository: "metaphlan"
+    version: "4.2.5"
+    revision: 1
+    context: "metaphlan/4.2.5/nodb"
+    aliases: ["4.2.5"]
+    package: "metaphlan"
+
+  metaphlan-425-db:
+    repository: "metaphlan"
+    version: "4.2.5"
+    tag_base: "4.2.5-mpa_vOct22_202403"
+    revision: 1
+    context: "metaphlan/4.2.5/mpa_vOct22_202403"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  metaphlan-426:
+    repository: "metaphlan"
+    version: "4.2.6"
+    revision: 1
+    context: "metaphlan/4.2.6"
+    aliases: ["4.2", "4", "4.2.6", "latest"]
+    package: "metaphlan"
+

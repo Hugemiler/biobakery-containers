@@ -1,0 +1,8 @@
+# pipeline-utils image definitions. Context paths are repository-root relative.
+images:
+  pipeline-utils:
+    repository: "pipeline-utils"
+    version: "2026.08"
+    revision: 1
+    context: "pipeline-utils/nodb"
+    aliases: ["2026", "latest"]

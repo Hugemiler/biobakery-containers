@@ -1,0 +1,80 @@
+# humann image definitions. Context paths are repository-root relative.
+images:
+  humann-370:
+    repository: "humann"
+    version: "3.7"
+    revision: 1
+    context: "packages/humann/3.7.0/nodb"
+    aliases: ["3", "3.7"]
+    package: "humann"
+    push_ghcr: true
+    push_aws: false
+    save: true
+
+  humann-370-chocophlan:
+    repository: "humann"
+    version: "3.7"
+    tag_base: "3.7-chocophlan-2019.01"
+    revision: 1
+    context: "packages/humann/3.7.0/chocophlan-2019.01"
+    aliases: []
+    package: "humann"
+    push_ghcr: true
+    push_aws: false
+    save: true
+
+  humann-400a:
+    repository: "humann"
+    version: "4.0.0"
+    revision: 1
+    context: "packages/humann/4.0.0a-dev/nodb"
+    aliases: ["4", "4.0", "4.0.0a", "latest"]
+    package: "humann"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-400a-chocophlan:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-chocophlan-2019.01"
+    revision: 1
+    context: "packages/humann/4.0.0a-dev/chocophlan-2019.01"
+    aliases: []
+    package: "humann"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-400a-staging:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-staging"
+    revision: 1
+    context: "packages/humann/4.0.0a-staging/nodb"
+    aliases: []
+    # Omit package check for source-modified builds if the conda pin is not authoritative.
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-400a-staging-chocophlan:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-staging-chocophlan-2019.01"
+    revision: 1
+    context: "packages/humann/4.0.0a-staging/chocophlan-2019.01"
+    aliases: []
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-experimental:
+    repository: "humann"
+    tag_base: "experimental"
+    revision: 1
+    context: "packages/humann/experimental"
+    aliases: ["experimental"]
+    push_ghcr: false
+    push_aws: false
+    save: true

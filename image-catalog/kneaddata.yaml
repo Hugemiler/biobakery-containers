@@ -1,0 +1,24 @@
+# kneaddata image definitions. Context paths are repository-root relative.
+images:
+  kneaddata-0121:
+    repository: "kneaddata"
+    version: "0.12.1"
+    revision: 1
+    context: "packages/kneaddata/0.12.1/nodb"
+    aliases: ["0.12", "latest"]
+    package: "kneaddata"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  kneaddata-0121-hg37dec:
+    repository: "kneaddata"
+    version: "0.12.1"
+    tag_base: "0.12.1-hg37dec"
+    revision: 1
+    context: "packages/kneaddata/0.12.1/hg37dec"
+    aliases: ["0.12-hg37dec", "latest-hg37dec"]
+    package: "kneaddata"
+    push_ghcr: false
+    push_aws: false
+    save: true

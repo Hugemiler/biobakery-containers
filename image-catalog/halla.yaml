@@ -1,0 +1,11 @@
+# halla image definitions. Context paths are repository-root relative.
+images:
+  halla-0820:
+    repository: "halla"
+    version: "0.8.20"
+    revision: 1
+    context: "packages/halla/0.8.20"
+    aliases: ["0.8", "latest"]
+    push_ghcr: true
+    push_aws: false
+    save: true
