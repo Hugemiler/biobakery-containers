@@ -64,21 +64,12 @@ login-aws: validate
 
 build: $(IMAGE_IDS)
 
+# Build wrapper handles optional private S3 authentication before invoking Docker.
+# No AWS profile is consulted for ordinary, local, or public-HTTPS builds.
 $(IMAGE_IDS): validate
-	@repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" repository )"; \
-	context="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" context )"; \
-	tag="$(TAG)"; \
-	[ -n "$$tag" ] || tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" tag )"; \
-	version="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" version )"; \
-	version_arg="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" version_arg )"; \
-	set --; \
-	if [ -n "$$version_arg" ]; then set -- "$$@" --build-arg "$$version_arg=$$version"; fi; \
-	if [ -n "$$version" ]; then set -- "$$@" --label "org.opencontainers.image.version=$$version"; fi; \
-	echo "Building $$repository:$$tag from $$context"; \
-	docker build "$$@" -t "$$repository:$$tag" -f "$$context/Dockerfile" "$$context" || exit 1; \
-	if [ "$(TAG)" = "" ] && [ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$@" save )" = "true" ]; then \
-		$(PYTHON) $(ARCHIVE_TOOL) --image "$$repository:$$tag" --id "$@" --tag "$$tag" --output "$(ARTIFACT_HOME)/$@/$$tag" || exit 1; \
-	fi
+	@$(PYTHON) scripts/build_image.py --inventory "$(INVENTORY)" --id "$@" \
+		--tag "$(TAG)" --artifact-home "$(ARTIFACT_HOME)" \
+		--aws-db-profile "$(AWS_DB_PROFILE)" --archive-tool "$(ARCHIVE_TOOL)"
 
 # The two registry destinations are independent. Neither build nor save publishes.
 push: push-ghcr push-aws
