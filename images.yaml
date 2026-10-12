@@ -1,135 +1,183 @@
-# Canonical inventory for every image built by this repository.
-# See README.md for commands, examples, and the complete publishing workflow.
+##############################################
+# VKCLab-BioBakery canonical image inventory #
+##############################################
+# Author(s): Guilherme Fahur Bottino, Ph.D.
 #
-# INVENTORY FORMAT
-#
-# `images` maps a stable inventory ID to one image build. The ID is used as the
-# individual Make target and Apptainer filename; it is not the registry name.
-# For example, `make metaphlan-4` builds `metaphlan-4`, and
-# `make apptainer-metaphlan-4` writes `metaphlan-4.sif`.
-#
-# Required fields:
-#
-#   repository: Registry repository name. Variants of the same software should
-#               share it, e.g. metaphlan-3 and metaphlan-4 both use metaphlan.
-#   version:    Release version of this container image, quoted as a string.
-#               It may mirror one application version, use calendar versioning
-#               for a toolbox, or follow another project-defined scheme. Use
-#               null for a draft that has no image release version yet; null
-#               produces a `dev-rN` tag.
-#   revision:   Positive integer identifying our packaging revision. Increment
-#               it when the recipe changes without changing the software
-#               version. Version 4.2.2 revision 2 becomes `4.2.2-r2`.
-#   context:    Repository-relative Docker build context containing Dockerfile.
-#   aliases:    Mutable convenience tags. They are never built or pushed by
-#               default and are published only by `make push-aliases`.
-#
-# Optional build and validation fields:
-#
-#   package:          For a single-application Conda image, require
-#                     context/environment.yaml to pin `package=version`. Do not
-#                     use this for bundles merely to satisfy the schema.
-#   version_arg:      Dockerfile ARG that receives `version` during the build.
-#                     Validation also checks that the ARG is declared.
-#   intended_version: Planned image version for an unversioned draft.
-#                     Informational only;
-#                     it does not make the image releasable or change its tag.
-#
-# TAG MODEL
-#
-# The canonical tag is `<version>-r<revision>` and identifies one container
-# recipe, e.g. `kneaddata:0.12.1-r1` or `pipeline-utils:2026.08-r1`.
-# Aliases are project policy, not a required version hierarchy. Examples are:
-#
-#   `0.12.1`  newest packaging revision for image release 0.12.1
-#   `0.12`    optional moving release-line alias
-#   `latest`  repository's recommended/default release
-#   `stable`  optional explicitly designated stable release
-#
-# Only one entry in a repository may own a given alias. `latest` and `stable`
-# are not assigned automatically. Avoid `release`: every canonical version is
-# already a release, and the tag's meaning would be ambiguous.
-#
-# SYNTAX AND VALIDATION
-#
-# Run `make images` to inspect the inventory and `make validate` after edits.
-# Values must use JSON-compatible YAML scalars: quote strings, use null for no
-# version, write revisions as integers, and write aliases as inline lists such
-# as ["4", "latest"]. Nested field values are intentionally unsupported so the
-# inventory can be parsed with Python's standard library and no PyYAML install.
+# Each entry has its own Dockerfile at context/Dockerfile.
+# version is the primary software version (optional); revision is OUR image build revision.
+# tag_base overrides the stem of the canonical <stem>-r<revision> tag.
+# push_ghcr defaults to true; push_aws defaults to false; save defaults to false.
+# No nested YAML; values use JSON-compatible syntax for the stdlib parser (by design).
 
 images:
-
-  # HAllA
-
   halla-0820:
     repository: "halla"
     version: "0.8.20"
     revision: 1
     context: "halla/0.8.20"
     aliases: ["0.8", "latest"]
-
-  # HUMAnN
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   humann-370:
     repository: "humann"
     version: "3.7"
     revision: 1
-    context: "humann/3.7.0"
+    context: "humann/3.7.0/nodb"
     aliases: ["3", "3.7"]
     package: "humann"
+    push_ghcr: true
+    push_aws: false
+    save: false
+
+  humann-370-chocophlan:
+    repository: "humann"
+    version: "3.7"
+    tag_base: "3.7-chocophlan-2019.01"
+    revision: 1
+    context: "humann/3.7.0/chocophlan-2019.01"
+    aliases: []
+    package: "humann"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-400a-dev: # Omit package check for source-modified builds if the conda pin is not authoritative.
+    repository: "humann"
+    version: "4.0.0"
+    revision: "9cb1a82"
+    context: "humann/4.0.0a-dev/nodb"
+    aliases: ["dev", "experimental"]
+    package: "humann"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   humann-400a:
     repository: "humann"
     version: "4.0.0"
     revision: 1
-    context: "humann/4.0.0a"
+    context: "humann/4.0.0a-staging/nodb"
     aliases: ["4", "4.0", "4.0.0a", "latest"]
     package: "humann"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
-  # KneadData
+  humann-400a-chocophlan:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-chocophlan-2019.01"
+    revision: 1
+    context: "humann/4.0.0a-dev/chocophlan-2019.01"
+    aliases: []
+    package: "humann"
+    push_ghcr: false
+    push_aws: false
+    save: true
+
+  humann-400a-staging-chocophlan:
+    repository: "humann"
+    version: "4.0.0"
+    tag_base: "4.0.0-staging-chocophlan-2019.01"
+    revision: 1
+    context: "humann/4.0.0a-staging/chocophlan-2019.01"
+    aliases: []
+    push_ghcr: false
+    push_aws: false
+    save: true
 
   kneaddata-0121:
     repository: "kneaddata"
     version: "0.12.1"
     revision: 1
-    context: "kneaddata/0.12.1"
+    context: "kneaddata/0.12.1/nodb"
     aliases: ["0.12", "latest"]
     package: "kneaddata"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
-  # MetaPhlAn
+  kneaddata-0121-hg37dec:
+    repository: "kneaddata"
+    version: "0.12.1"
+    tag_base: "0.12.1-hg37dec"
+    revision: 1
+    context: "kneaddata/0.12.1/hg37dec"
+    aliases: []
+    package: "kneaddata"
+    push_ghcr: false
+    push_aws: false
+    save: true
 
   metaphlan-31:
     repository: "metaphlan"
     version: "3.1"
     revision: 1
-    context: "metaphlan/3"
+    context: "metaphlan/3.1/nodb"
     aliases: ["3", "3.1"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
+
+  metaphlan-31-db:
+    repository: "metaphlan"
+    version: "3.1"
+    tag_base: "3.1-mpa_v31_201901"
+    revision: 1
+    context: "metaphlan/3.1/mpa_v31_201901"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
 
   metaphlan-410:
     repository: "metaphlan"
     version: "4.1.0"
     revision: 1
-    context: "metaphlan/4.1.0"
+    context: "metaphlan/4.1.0/nodb"
     aliases: ["4.1.0"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   metaphlan-411:
     repository: "metaphlan"
     version: "4.1.1"
     revision: 1
-    context: "metaphlan/4.1.1"
+    context: "metaphlan/4.1.1/nodb"
     aliases: ["4.1.1"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   metaphlan-412:
     repository: "metaphlan"
     version: "4.1.2"
     revision: 1
-    context: "metaphlan/4.1.2"
+    context: "metaphlan/4.1.2/nodb"
     aliases: ["4.1", "4.1.2"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
+
+  metaphlan-412-db:
+    repository: "metaphlan"
+    version: "4.1.2"
+    tag_base: "4.1.2-mpa_vOct22_202403"
+    revision: 1
+    context: "metaphlan/4.1.2/mpa_vOct22_202403"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
 
   metaphlan-422:
     repository: "metaphlan"
@@ -138,30 +186,54 @@ images:
     context: "metaphlan/4.2.2"
     aliases: ["4.2.2"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   metaphlan-423:
     repository: "metaphlan"
     version: "4.2.3"
     revision: 1
-    aliases: ["4.2.3"]
     context: "metaphlan/4.2.3"
+    aliases: ["4.2.3"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   metaphlan-424:
     repository: "metaphlan"
     version: "4.2.4"
     revision: 1
-    aliases: ["4.2.4"]
     context: "metaphlan/4.2.4"
+    aliases: ["4.2.4"]
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   metaphlan-425:
     repository: "metaphlan"
     version: "4.2.5"
     revision: 1
+    context: "metaphlan/4.2.5/nodb"
     aliases: ["4.2.5"]
-    context: "metaphlan/4.2.5"
     package: "metaphlan"
+    push_ghcr: true
+    push_aws: false
+    save: false
+
+  metaphlan-425-db:
+    repository: "metaphlan"
+    version: "4.2.5"
+    tag_base: "4.2.5-mpa_vOct22_202403"
+    revision: 1
+    context: "metaphlan/4.2.5/mpa_vOct22_202403"
+    aliases: []
+    package: "metaphlan"
+    push_ghcr: false
+    push_aws: false
+    save: true
 
   metaphlan-426:
     repository: "metaphlan"
@@ -170,21 +242,27 @@ images:
     context: "metaphlan/4.2.6"
     aliases: ["4.2", "4", "4.2.6", "latest"]
     package: "metaphlan"
-
-  # Omixer-RPM (external)
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   omixer_rpm:
     repository: "omixer-rpm"
     version: "1.1"
     revision: 1
-    context: "omixer_rpm"
+    context: "omixer_rpm/nodb"
     aliases: ["1", "latest"]
-
-  # Pipeline Utilities
+    push_ghcr: true
+    push_aws: false
+    save: false
 
   pipeline-utils:
     repository: "pipeline-utils"
     version: "2026.08"
     revision: 1
-    context: "pipeline-utils"
+    context: "pipeline-utils/nodb"
     aliases: ["2026", "latest"]
+    push_ghcr: true
+    push_aws: false
+    save: false
+    
