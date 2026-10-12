@@ -1,56 +1,67 @@
 #!/usr/bin/env bash
-# Reproducible (on a pinned GNU tar + zstd toolchain) database archive and provenance sidecars.
+# Package a database directory as a reproducible gzip tarball with checksum and metadata.
 set -euo pipefail
 
 if (( $# != 3 )); then
   echo "Usage: $0 SOURCE_DIRECTORY OUTPUT_DIRECTORY BUNDLE_NAME" >&2
-  echo "Example: $0 /data/metaphlan/mpa_vOct22_202403 /dist/metaphlan/mpa_vOct22_202403 metaphlan-mpa_vOct22_202403" >&2
   exit 2
 fi
 
 source_dir=$(realpath -- "$1")
 output_dir=$(realpath -m -- "$2")
 name=$3
-[[ -d "$source_dir" ]] || { echo "Missing source directory: $source_dir" >&2; exit 2; }
-[[ "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || { echo "Invalid bundle name" >&2; exit 2; }
-command -v zstd >/dev/null || { echo 'zstd is required' >&2; exit 2; }
-command -v sha256sum >/dev/null || { echo 'sha256sum is required' >&2; exit 2; }
+[[ -d "$source_dir" ]] || { echo "Directory not found: $source_dir" >&2; exit 2; }
+[[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || { echo "Invalid bundle name: $name" >&2; exit 2; }
+case "$output_dir/" in "$source_dir/"*) echo "Output directory must be outside source directory" >&2; exit 2;; esac
 mkdir -p -- "$output_dir"
-# Do not archive an output folder nested inside the input directory.
-case "$output_dir/" in "$source_dir/"*) echo 'OUTPUT_DIRECTORY must be outside SOURCE_DIRECTORY' >&2; exit 2;; esac
-archive="$output_dir/$name.tar.zst"
-[[ ! -e "$archive" ]] || { echo "Already exists: $archive (refusing to overwrite)" >&2; exit 2; }
+archive="$output_dir/$name.tar.gz"
+[[ ! -e "$archive" ]] || { echo "Archive already exists: $archive" >&2; exit 2; }
 
-# Archive the directory CONTENTS, so extraction with -C /Databases/<tool> is predictable.
-# Exclude volatile pax atime/ctime; normalize uid/gid and mtime.
-tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+# Store directory CONTENTS (./file), not its containing folder.
+# GNU tar flags normalize ordering, timestamps, ownership and volatile metadata.
+# tar -z uses gzip's default compression level (6).
+# Write to a temporary file so failed builds do not leave a finished-looking archive.
+tmp="$archive.tmp"
+trap 'rm -f -- "$tmp"' EXIT
+tar -cvzf "$tmp" \
+  --sort=name \
+  --mtime='@0' \
+  --owner=0 --group=0 --numeric-owner \
   --format=posix --pax-option=delete=atime,delete=ctime \
-  -C "$source_dir" -cf - . | zstd -T8 -6 -q -o "$archive"
+  -C "$source_dir" .
+mv -- "$tmp" "$archive"
+trap - EXIT
+
 (
   cd "$output_dir"
-  sha256sum "$name.tar.zst" > "$name.tar.zst.sha256"
-  sha256sum -c "$name.tar.zst.sha256"
+  sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+  sha256sum -c "$name.tar.gz.sha256"
 )
 
-python3 - "$archive" "$name" "$source_dir" <<'PY'
-import json, pathlib, subprocess, sys
+python3 - "$archive" "$name" <<'PY'
+import hashlib
+import json
+import pathlib
+import subprocess
+import sys
+
 archive = pathlib.Path(sys.argv[1])
-name, source = sys.argv[2:]
-def version(cmd):
-    return subprocess.check_output(cmd, text=True).splitlines()[0]
+name = sys.argv[2]
+with archive.open('rb') as stream:
+    sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
 metadata = {
     'schema_version': 1,
     'name': name,
     'archive': archive.name,
-    'archive_sha256': (archive.parent / (name + '.tar.zst.sha256')).read_text().split()[0],
     'archive_bytes': archive.stat().st_size,
-    'layout': 'directory contents; extract into destination with tar -C',
-    'source_directory_name': pathlib.Path(source).name,
-    'compression': 'zstd -T1 -19',
-    'tar_options': ['--sort=name', "--mtime=@0", '--owner=0', '--group=0', '--numeric-owner', '--format=posix', '--pax-option=delete=atime,delete=ctime'],
-    'tar_version': version(['tar', '--version']),
-    'zstd_version': version(['zstd', '--version']),
+    'archive_sha256': sha256,
+    'compression': 'gzip (tar -z, default level 6)',
+    'layout': 'directory contents; extract with tar -xzf archive -C DESTINATION',
+    'tar_version': subprocess.check_output(['tar', '--version'], text=True).splitlines()[0],
+    'gzip_version': subprocess.check_output(['gzip', '--version'], text=True).splitlines()[0],
 }
-(archive.parent / (name + '.metadata.json')).write_text(json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+(archive.parent / f'{name}.metadata.json').write_text(
+    json.dumps(metadata, sort_keys=True, indent=2) + '\n', encoding='utf-8'
+)
 PY
-printf 'Created: %s\n' "$archive"
+printf '\nCreated: %s\n' "$archive"
