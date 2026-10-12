@@ -55,3 +55,28 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError('cross-file tag conflict not rejected')
 print('PASS: 24 entries, CLI, global tags, duplicate IDs, and cross-file collisions')
+
+# Validate database source policy, including unset/default mode.
+for source in (None, 'local', 'https', 's3-private'):
+    candidate = dict(images['humann-400a'])
+    if source is not None:
+        candidate['database_source'] = source
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / candidate['context']).mkdir(parents=True)
+        (root / candidate['context'] / 'Dockerfile').write_text('FROM scratch\n')
+        (root / candidate['context'] / 'environment.yaml').write_text('dependencies:\n  - humann=4.0.0\n')
+        mod.validate(root / 'images.yaml', {'humann-400a': candidate})
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    candidate = dict(images['humann-400a'], database_source='unknown')
+    (root / candidate['context']).mkdir(parents=True)
+    (root / candidate['context'] / 'Dockerfile').write_text('FROM scratch\n')
+    (root / candidate['context'] / 'environment.yaml').write_text('dependencies:\n  - humann=4.0.0\n')
+    try:
+        mod.validate(root / 'images.yaml', {'humann-400a': candidate})
+    except mod.InventoryError as error:
+        assert 'database_source' in str(error)
+    else:
+        raise AssertionError('Invalid database_source was accepted')
+print('PASS: database_source values validated')
