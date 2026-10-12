@@ -1,5 +1,5 @@
 # Base image
-FROM mambaorg/micromamba:1.4.3
+FROM ubuntu:24.04
 
 # Set working directory
 # WORKDIR /app
@@ -21,15 +21,6 @@ RUN wget https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-u
 
 # Add SRA tools to PATH
 ENV PATH="/opt/sratools/bin:$PATH"
-
-# USER $MAMBA_USER
-
-# Copy micromamba environment YAML
-COPY --chown=$MAMBA_USER:$MAMBA_USER environment.yaml /tmp/env.yaml
-
-# Create and configure micromamba environment
-RUN micromamba install -y -n base -f /tmp/env.yaml && \
-    micromamba clean --all --yes
 
 # Intentionally track the current SRA Toolkit release.
 RUN /opt/sratools/bin/fasterq-dump --version
