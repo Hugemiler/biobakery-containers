@@ -24,8 +24,7 @@ make validate
 
 Validation checks required fields, names and tag syntax, duplicate registry
 references, build contexts and Dockerfiles, plus any optional `package` or
-`version_arg` consistency checks an entry declares. It also rejects aliases
-for unpublished images and conflicting aliases within one repository.
+`version_arg` consistency checks an entry declares. It also rejects conflicting canonical tags or aliases within one repository.
 
 The inventory uses a deliberately restricted YAML subset so it can be parsed
 with the Python standard library. Quote all strings, use JSON-style inline
@@ -81,7 +80,7 @@ images:
 | `version` | No | Expected primary application version. For Conda images, `package` can validate its pin. |
 | `revision` | Yes | Positive, independent packaging revision for this canonical image variant. |
 | `context` | Yes | Build directory containing `Dockerfile` (and possibly `environment.yaml`). |
-| `aliases` | Yes | Human-friendly mutable registry tags; `[]` for none. |
+| `aliases` | Yes | Human-friendly local tags created during canonical builds; registry promotion is separate. |
 | `tag_base` | No | Canonical tag stem; defaults to `version`, or `dev` if there is no version. |
 | `push_ghcr` | No | Publish canonical image and selected aliases to GHCR. Defaults to `true` for backward compatibility. |
 | `push_aws` | No | Publish canonical image and selected aliases to AWS ECR. Defaults to `false`. |
@@ -105,8 +104,7 @@ ghcr.io/klepac-ceraj-lab/humann:4.0.0-chocophlan-2019.01-r1
 ```
 
 The aliases `4`, `4.0`, and `latest` are independently chosen conveniences.
-They are promoted **only** with `make push-aliases`, and they are allowed only
-when at least one push flag is true. To avoid claiming release aliases for an unversioned draft,
+They are created **locally during canonical builds**, even when neither registry is enabled. Registry aliases are promoted **only** with `make push-aliases`. To avoid claiming release aliases for an unversioned draft,
 set `aliases: []` unless that entry has an explicit `tag_base`.
 
 ### Building, saving, and publishing
@@ -127,7 +125,7 @@ make push-aliases      # first push canonicals, then promote their aliases
 ```
 
 `make build` never pushes. `make push` never builds. Setting `TAG=test` on a
-single build is for local experiments and intentionally skips auto-archiving;
+single build is for local experiments and intentionally skips alias tagging and auto-archiving;
 `push` and `archive` require canonical tags. `make archive` processes all entries
 with `save: true` using already-built images.
 
@@ -165,7 +163,7 @@ save: true
 
 All four combinations are supported: GHCR only, ECR only, both, or neither.
 `save` is independent and still produces the Docker archive and provenance bundle.
-An image with both push flags false should use `aliases: []`.
+Images with both push flags false may still declare and use local aliases.
 
 `make push` handles the selected registries without rebuilding. The local image
 reference is a local `repository:tag` image; for either registry destination,
@@ -176,7 +174,7 @@ aliases separately in each selected registry. `make push-ghcr` and
 For GHCR, set `GHCR_HANDLE`, `GHCR_USER`, and `GHCR_PAT`. For ECR, set
 `ECR_REPO` to the registry namespace/prefix, e.g.
 `123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery`, plus `AWS_REGION`
-and optionally `AWS_PROFILE`. The ECR repositories under that prefix must
+and `AWS_ECR_PROFILE` (required). The ECR repositories under that prefix must
 already exist; this Makefile does not create them. An ECR push uses the Docker
 registry protocol, not an S3 upload.
 
@@ -321,7 +319,7 @@ singularity exec --bind $PWD:$PWD --bind /murray:/murray /murray/containers/meta
 
 ### Local image identity and independent registries
 
-`make build` always produces `repository:<canonical-tag>` in the local Docker daemon.
+`make build` creates `repository:<canonical-tag>` plus all declared local aliases (unless `TAG` overrides the canonical tag).
 `REPO_TYPE` is not used. `make push-ghcr` and `make push-aws` retag the same
 local image and push only entries enabled by `push_ghcr` or `push_aws`.
 `make push` invokes both. `make push-aliases` promotes configured aliases
@@ -337,3 +335,83 @@ and Apptainer conversion must be exercised in an environment with those services
 Run `python3 tests/test_catalog.py` to check multi-file loading, CLI commands,
 canonical reference collisions, and duplicate IDs using temporary Dockerfile
 fixtures. This test does not build Docker images or contact GHCR/ECR.
+
+## Database acquisition and AWS profile separation
+
+`database_source` is an **optional** field on each catalog entry. Its allowed
+values are `null` (or omit the field), `"local"`, `"https"`, and
+`"s3-private"`. It declares only the **acquisition mechanism**; Dockerfiles
+remain the authoritative recipes for downloading/copying archives, checking
+SHA-256, and extracting them into `/Databases`.
+
+| `database_source` | AWS database profile | Action |
+| --- | --- | --- |
+| omitted / `null` | not needed | Standard image build |
+| `"local"` | not needed | Dockerfile consumes archive in build context |
+| `"https"` | not needed | Dockerfile fetches public HTTPS archive |
+| `"s3-private"` | **required** | Preflight selected profile; BuildKit credential secret |
+
+Example private S3 catalog entry:
+
+```yaml
+  metaphlan-425-private-db:
+    repository: "metaphlan"
+    version: "4.2.5"
+    tag_base: "4.2.5-private-db"
+    revision: 1
+    context: "metaphlan/4.2.5/mpa_vOct22_202403"
+    aliases: []
+    package: "metaphlan"
+    database_source: "s3-private"
+    push_ghcr: false
+    push_aws: true
+    save: true
+```
+
+Example Dockerfile excerpt (install `awscli`, `tar`, and `zstd` in an earlier
+layer; replace the URI and checksum with real values):
+
+```dockerfile
+# syntax=docker/dockerfile:1
+ARG DB_URI=s3://your-private-bucket/your-db.tar.zst
+ARG DB_SHA256=REPLACE_WITH_VERIFIED_SHA256
+RUN --mount=type=secret,id=aws_db_credentials,required=true \
+    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws_db_credentials \
+    AWS_PROFILE=default \
+    aws s3 cp "$DB_URI" /tmp/database.tar.zst \
+ && echo "$DB_SHA256  /tmp/database.tar.zst" | sha256sum -c - \
+ && mkdir -p /Databases \
+ && tar --zstd -xf /tmp/database.tar.zst -C /Databases \
+ && rm /tmp/database.tar.zst
+```
+
+Authenticate to S3 with one profile and publish to ECR with another:
+
+```sh
+aws sso login --profile database-reader  # only if SSO is used
+make metaphlan-425-private-db AWS_DB_PROFILE=database-reader
+make push-aws AWS_ECR_PROFILE=ecr-publisher ECR_REPO=123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery
+```
+
+The build helper validates the AWS database profile **before** starting the
+Docker build and passes resolved credentials via a temporary BuildKit secret.
+For omitted, local, and public-HTTPS sources, no database AWS profile is needed
+or consulted. `AWS_DB_PROFILE` never falls back to `AWS_ECR_PROFILE` or the AWS
+CLI's default profile. `AWS_ECR_PROFILE` is required for ECR publication.
+
+A successful STS preflight proves that the profile authenticates; it **does not**
+prove that a particular S3 object is readable. Missing object permissions or
+bucket access fail at the Dockerfile's `aws s3 cp` step. Credentials with short
+expiry times may expire during a very large download. The secret protects AWS
+credentials, **not database bytes** distributed inside the completed image.
+
+For a local archive, `COPY` can only access files in the Docker build context
+(or an explicitly configured extra build context). For public HTTPS, use
+`curl --fail --location` followed by the same SHA-256 verification.
+
+Existing entries have not been assigned `database_source` automatically:
+being in a database-named directory does not establish whether a Dockerfile
+currently uses local files, public HTTPS, or private S3. Set this field on each
+applicable image after inspecting its Dockerfile. Actual Docker builds,
+private S3 access, and ECR publishing still require integration tests with
+real recipes and AWS profiles.
