@@ -9,3 +9,4 @@ dependencies:
   - humann=4.0.0
   - bzip2
   - pigz
+  - git

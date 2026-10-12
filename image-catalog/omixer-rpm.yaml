@@ -4,6 +4,6 @@ images:
     repository: "omixer-rpm"
     version: "1.1"
     revision: 1
-    context: "omixer_rpm/nodb"
+    context: "packages/omixer_rpm/nodb"
     aliases: ["1", "latest"]
 
