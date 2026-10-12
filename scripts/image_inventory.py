@@ -20,7 +20,7 @@ NAME_RE = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 TAG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")
 ARG_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 REQUIRED_FIELDS = {"repository", "revision", "context", "aliases"}
-OPTIONAL_FIELDS = {"version", "tag_base", "push_ghcr", "push_aws", "save", "intended_version", "package", "version_arg"}
+OPTIONAL_FIELDS = {"version", "tag_base", "push_ghcr", "push_aws", "save", "intended_version", "package", "version_arg", "database_source"}
 
 
 class InventoryError(ValueError):
@@ -110,6 +110,9 @@ def validate(path: Path, images: Dict[str, Dict[str, Any]], sources: Optional[Di
         intended_version = image.get("intended_version")
         package = image.get("package")
         version_arg = image.get("version_arg")
+        database_source = image.get("database_source")
+        if database_source not in (None, "local", "https", "s3-private"):
+            errors.append(f"{origin}: database_source must be null, local, https, or s3-private")
 
         if not isinstance(repository, str) or not NAME_RE.fullmatch(repository):
             errors.append(f"{origin}: invalid repository name {repository!r}")
@@ -171,11 +174,6 @@ def validate(path: Path, images: Dict[str, Dict[str, Any]], sources: Optional[Di
             errors.append(f"{origin}: version_arg requires a non-null image version")
         if version is None and aliases and tag_base is None:
             errors.append(f"{origin}: an unversioned draft without tag_base cannot have release aliases")
-        # if aliases and not (push_ghcr or push_aws):
-        #     # Aliases are meaningful only for registry publication; keep this
-        #     # as an error so nobody mistakes a local tag for a published alias.
-        #     errors.append(f"{origin}: aliases require push_ghcr or push_aws; set aliases: [] for local-only images")
-        ## ^ Actually, local aliases can be useful too -- commenting this block for now.
 
         if isinstance(repository, str) and NAME_RE.fullmatch(repository):
             tags = [image_tag(image), *aliases]
@@ -232,9 +230,9 @@ def print_table(images: Dict[str, Dict[str, Any]], sources: Dict[str, Path], pac
             version = f"UNPINNED->{intended}" if intended else "UNPINNED"
         aliases = ", ".join(image["aliases"]) or "-"
         rows.append(
-            (image_id, image["repository"], version, str(image["revision"]), image_tag(image), aliases, str(image.get("push_ghcr", True)).lower(), str(image.get("push_aws", False)).lower(), str(image.get("save", False)).lower(), str(sources[image_id]))
+            (image_id, image["repository"], version, str(image["revision"]), image_tag(image), aliases, str(image.get("push_ghcr", True)).lower(), str(image.get("push_aws", False)).lower(), str(image.get("save", False)).lower(), image.get("database_source") or "-", str(sources[image_id]))
         )
-    headers = ("ID", "IMAGE", "VERSION", "REV", "CANONICAL TAG", "ALIASES", "GHCR", "ECR", "SAVE", "SOURCE")
+    headers = ("ID", "IMAGE", "VERSION", "REV", "CANONICAL TAG", "ALIASES", "GHCR", "ECR", "SAVE", "DATABASE", "SOURCE")
     if not rows:
         print("No images match the package filter")
         return
@@ -256,7 +254,7 @@ def main() -> int:
     get_parser = subparsers.add_parser("get")
     get_parser.add_argument("image_id")
     get_parser.add_argument(
-        "field", choices=["repository", "version", "revision", "context", "version_arg", "tag_base", "tag", "aliases", "push_ghcr", "push_aws", "save"]
+        "field", choices=["repository", "version", "revision", "context", "version_arg", "tag_base", "tag", "aliases", "push_ghcr", "push_aws", "save", "database_source"]
     )
     args = parser.parse_args()
 
