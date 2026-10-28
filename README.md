@@ -130,7 +130,8 @@ single build is for local experiments and intentionally skips alias tagging and 
 with `save: true` using already-built images.
 
 By default, archive bundles are placed under
-`dist/<inventory-id>/<canonical-tag>/` with:
+`$(BUILD_LOCAL_CONTAINER_HOME)/<inventory-id>/<canonical-tag>/`
+(default: `/murray/containers/<inventory-id>/<canonical-tag>/`) with:
 
 ```text
 humann_4.0.0-r1.tar
@@ -171,12 +172,29 @@ Make tags the same local image before pushing. `make push-aliases` promotes
 aliases separately in each selected registry. `make push-ghcr` and
 `make push-aws` limit publishing to one destination.
 
-For GHCR, set `GHCR_HANDLE`, `GHCR_USER`, and `GHCR_PAT`. For ECR, set
-`ECR_REPO` to the registry namespace/prefix, e.g.
-`123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery`, plus `AWS_REGION`
-and `AWS_ECR_PROFILE` (required). The ECR repositories under that prefix must
-already exist; this Makefile does not create them. An ECR push uses the Docker
-registry protocol, not an S3 upload.
+For GHCR, set `GHCR_HANDLE`, `GHCR_USER`, and `GHCR_PAT`. AWS publication
+supports Public ECR only. Set `ECR_REPO` to your active registry alias and
+`AWS_ECR_PROFILE` to your existing
+AWS CLI profile name (required). The AWS CLI uses that profile's configured
+credentials. The Makefile uses `aws ecr-public` and always authenticates in
+`us-east-1`; no region setting is needed. Use the assigned alias until a
+requested custom alias is active. The header defines `REGISTRY_ECR` as
+`public.ecr.aws/$(ECR_REPO)` for canonical pushes and alias promotion.
+
+The ECR repositories under that prefix must already exist; this Makefile does
+not create them. Enable publication with `push_aws: true` on the intended
+catalog entries (`push_ecr` is not a supported field). Build those images first,
+then publish their canonical tags:
+
+```sh
+make push-aws AWS_ECR_PROFILE=ecr-publisher ECR_REPO=ACTIVE_ALIAS
+```
+
+To publish canonical tags and then promote declared aliases such as `latest`,
+use `make push-aws-aliases` with the same settings. Both targets process all
+entries with `push_aws: true`, and neither builds images. To limit a test to
+the KneadData catalog, also pass `INVENTORY=image-catalog/kneaddata.yaml`.
+An ECR push uses the Docker registry protocol, not an S3 upload.
 
 ### Apptainer
 
@@ -390,7 +408,7 @@ Authenticate to S3 with one profile and publish to ECR with another:
 ```sh
 aws sso login --profile database-reader  # only if SSO is used
 make metaphlan-425-private-db AWS_DB_PROFILE=database-reader
-make push-aws AWS_ECR_PROFILE=ecr-publisher ECR_REPO=123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery
+make push-aws AWS_ECR_PROFILE=ecr-publisher ECR_REPO=ACTIVE_ALIAS
 ```
 
 The build helper validates the AWS database profile **before** starting the
@@ -446,8 +464,9 @@ to subsequent local tagging, archiving, and publication commands.
 
 `save: true` enables an archive bundle following a successful canonical build.
 `make archive` checks the same bundles without rebuilding images. Files are
-placed at `dist/<inventory-id>/<canonical-tag>/` (set `ARTIFACT_HOME` to change
-`dist`). Each bundle contains:
+placed at `$(BUILD_LOCAL_CONTAINER_HOME)/<inventory-id>/<canonical-tag>/`
+(default: `/murray/containers/<inventory-id>/<canonical-tag>/`). Set
+`ARTIFACT_HOME` to override the archive output location. Each bundle contains:
 
 ```text
 humann_4.0.0-r1.tar

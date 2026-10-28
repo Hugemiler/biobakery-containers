@@ -1,24 +1,21 @@
 ### REPOSITORY SETTINGS BLOCK
+
 # GHCR settings
 GHCR_HANDLE ?= klepac-ceraj-lab
 GHCR_USER ?=
 GHCR_PAT ?=
-# ECR settings
-AWS_REGION ?= us-east-1
+REGISTRY_GHCR := ghcr.io/$(GHCR_HANDLE)
+
+# Public ECR settings (uses an existing AWS CLI profile)
 AWS_ECR_PROFILE ?=
 AWS_DB_PROFILE ?=
-ECR_REPO ?=
-# Registry destinations (publication only, never used as local build identity)
-REGISTRY_ghcr := ghcr.io/$(GHCR_HANDLE)
-REGISTRY_ecr := $(ECR_REPO)
-# ECR_REPO is the full namespace, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/biobakery
-ECR_HOST = $(firstword $(subst /, ,$(ECR_REPO)))
+ECR_REPO ?= j5i5h1i5
+REGISTRY_ECR := public.ecr.aws/$(ECR_REPO)
+# Public ECR authentication always uses us-east-1.
 
 ### STORAGE SETTINGS BLOCK
-BUILD_LOCAL_CONTAINER_HOME ?= /murray/containers
-export BUILD_LOCAL_CONTAINER_HOME
-BUILD_LOCAL_DATABASE_SOURCE ?= /murray/databases
-export BUILD_LOCAL_DATABASE_SOURCE
+BUILD_LOCAL_CONTAINER_HOME ?=
+BUILD_LOCAL_DATABASE_SOURCE ?=
 
 ### INVENTORY SETTINGS BLOCK
 PYTHON ?= python3
@@ -26,7 +23,7 @@ CATALOG_DIR ?= image-catalog
 INVENTORY ?= $(CATALOG_DIR)
 INVENTORY_TOOL := scripts/image_inventory.py
 ARCHIVE_TOOL := scripts/archive_image.py
-ARTIFACT_HOME ?= dist
+ARTIFACT_HOME ?= $(BUILD_LOCAL_CONTAINER_HOME)
 IMAGE_IDS := $(shell $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) ids 2>/dev/null)
 APPTAINER_TARGETS := $(IMAGE_IDS:%=apptainer-%)
 ARCHIVE_TARGETS := $(IMAGE_IDS:%=archive-%)
@@ -60,9 +57,8 @@ login-ghcr: validate
 
 login-aws: validate
 	@[ -n "$(AWS_ECR_PROFILE)" ] || { echo "ERROR: Set AWS_ECR_PROFILE for ECR publication" >&2; exit 1; }
-	@[ -n "$(ECR_REPO)" ] || { echo "Set ECR_REPO (full AWS registry namespace)" >&2; exit 1; }
-	@aws ecr get-login-password --region "$(AWS_REGION)" --profile "$(AWS_ECR_PROFILE)" | \
-		docker login --username AWS --password-stdin "$(ECR_HOST)"
+	@aws ecr-public get-login-password --region us-east-1 --profile "$(AWS_ECR_PROFILE)" | \
+		docker login --username AWS --password-stdin public.ecr.aws
 
 build: $(IMAGE_IDS)
 
@@ -89,7 +85,7 @@ push-ghcr: validate
 		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_ghcr )" = "true" ] || continue; \
 		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
-		src="$$repository:$$tag"; dst="$(REGISTRY_ghcr)/$$repository:$$tag"; \
+		src="$$repository:$$tag"; dst="$(REGISTRY_GHCR)/$$repository:$$tag"; \
 		docker image inspect "$$src" >/dev/null 2>&1 || { echo "Missing $$src; build $$image_id first" >&2; exit 1; }; \
 		docker tag "$$src" "$$dst" && docker push "$$dst" || exit 1; \
 	done
@@ -102,13 +98,12 @@ push-aws: validate
 	done; \
 	if [ "$$selected" = 0 ]; then echo "No ECR images selected"; exit 0; fi; \
 	[ -n "$(AWS_ECR_PROFILE)" ] || { echo "ERROR: Set AWS_ECR_PROFILE for ECR publication" >&2; exit 1; }; \
-	[ -n "$(ECR_REPO)" ] || { echo "Set ECR_REPO" >&2; exit 1; }; \
-	aws ecr get-login-password --region "$(AWS_REGION)" --profile "$(AWS_ECR_PROFILE)" | docker login --username AWS --password-stdin "$(ECR_HOST)" || exit 1; \
+	aws ecr-public get-login-password --region us-east-1 --profile "$(AWS_ECR_PROFILE)" | docker login --username AWS --password-stdin public.ecr.aws || exit 1; \
 	for image_id in $(IMAGE_IDS); do \
 		[ "$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" push_aws )" = "true" ] || continue; \
 		repository="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" repository )"; \
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
-		src="$$repository:$$tag"; dst="$(REGISTRY_ecr)/$$repository:$$tag"; \
+		src="$$repository:$$tag"; dst="$(REGISTRY_ECR)/$$repository:$$tag"; \
 		docker image inspect "$$src" >/dev/null 2>&1 || { echo "Missing $$src; build $$image_id first" >&2; exit 1; }; \
 		docker tag "$$src" "$$dst" && docker push "$$dst" || exit 1; \
 	done
@@ -123,7 +118,7 @@ push-ghcr-aliases: push-ghcr
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
 		aliases="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" aliases )"; \
 		for alias in $$aliases; do \
-			docker buildx imagetools create --tag "$(REGISTRY_ghcr)/$$repository:$$alias" "$(REGISTRY_ghcr)/$$repository:$$tag" || exit 1; \
+			docker buildx imagetools create --tag "$(REGISTRY_GHCR)/$$repository:$$alias" "$(REGISTRY_GHCR)/$$repository:$$tag" || exit 1; \
 		done; \
 	done
 
@@ -134,7 +129,7 @@ push-aws-aliases: push-aws
 		tag="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" tag )"; \
 		aliases="$$( $(PYTHON) $(INVENTORY_TOOL) --inventory $(INVENTORY) get "$$image_id" aliases )"; \
 		for alias in $$aliases; do \
-			docker buildx imagetools create --tag "$(REGISTRY_ecr)/$$repository:$$alias" "$(REGISTRY_ecr)/$$repository:$$tag" || exit 1; \
+			docker buildx imagetools create --tag "$(REGISTRY_ECR)/$$repository:$$alias" "$(REGISTRY_ECR)/$$repository:$$tag" || exit 1; \
 		done; \
 	done
 
