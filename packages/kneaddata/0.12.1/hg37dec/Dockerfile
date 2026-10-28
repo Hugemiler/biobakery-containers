@@ -16,9 +16,9 @@ COPY --from=databases \
     /kneaddata/hg37dec.tar.gz \
     /tmp/database.tar.gz
 ## Extract database tarball and change permissions, remove original after
-RUN mkdir -p /Databases/kneaddata \
- && tar -xzf /tmp/database.tar.gz -C /Databases/kneaddata \
- && chmod -R a+rX /Databases/kneaddata \
+RUN mkdir -p /Databases/kneaddata/hg37dec \
+ && tar -xzf /tmp/database.tar.gz -C /Databases/kneaddata/hg37dec \
+ && chmod -R a+rX /Databases/kneaddata/hg37dec \
  && rm /tmp/database.tar.gz
 ## Restore the original runtime user
 USER $MAMBA_USER
