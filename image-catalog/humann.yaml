@@ -1,38 +1,49 @@
 # humann image definitions. Context paths are repository-root relative.
 images:
+  # humann-experimental:
+  #   repository: "humann"
+  #   version: "4.0.0"
+  #   tag_base: "4.0.0-experimental-chocophlan-v4-201901"
+  #   revision: 1
+  #   context: "packages/humann/4.0.0a-dev/nodb"
+  #   aliases: ["experimental"]
+  #   push_ghcr: false
+  #   push_aws: false
+  #   save: false
+
   humann-experimental:
     repository: "humann"
     version: "4.0.0"
     tag_base: "4.0.0-experimental-chocophlan-v4-201901"
     revision: 1
-    context: "packages/humann/4.0.0a-dev/nodb"
+    context: "packages/humann/4.0.0a-dev/chocophlan-v4-201901"
     aliases: ["experimental"]
     push_ghcr: false
-    push_aws: false
-    save: false
-
-  humann-400a:
-    repository: "humann"
-    version: "4.0.0"
-    revision: 1
-    context: "packages/humann/4.0.0a-staging/nodb"
-    aliases: ["4", "4.0", "4.0.0a", "latest"]
-    package: "humann"
-    push_ghcr: false
-    push_aws: false
-    save: false
-  
-  humann-400a-chocophlan:
-    repository: "humann"
-    version: "4.0.0"
-    tag_base: "4.0.0-chocophlan-v4-201901"
-    revision: 1
-    context: "packages/humann/4.0.0a-staging/chocophlan-v4-201901"
-    aliases: ["4-chocophlan-v4-201901", "4.0-chocophlan-v4-201901", "4.0.0a-chocophlan-v4-201901", "latest-chocophlan-v4-201901"]
-    package: "humann"
-    push_ghcr: false
-    push_aws: false
+    push_aws: true
     save: true
+
+  # humann-400a:
+  #   repository: "humann"
+  #   version: "4.0.0"
+  #   revision: 1
+  #   context: "packages/humann/4.0.0a-staging/nodb"
+  #   aliases: ["4", "4.0", "4.0.0a", "latest"]
+  #   package: "humann"
+  #   push_ghcr: false
+  #   push_aws: false
+  #   save: false
+  
+  # humann-400a-chocophlan:
+  #   repository: "humann"
+  #   version: "4.0.0"
+  #   tag_base: "4.0.0-chocophlan-v4-201901"
+  #   revision: 1
+  #   context: "packages/humann/4.0.0a-staging/chocophlan-v4-201901"
+  #   aliases: ["4-chocophlan-v4-201901", "4.0-chocophlan-v4-201901", "4.0.0a-chocophlan-v4-201901", "latest-chocophlan-v4-201901"]
+  #   package: "humann"
+  #   push_ghcr: false
+  #   push_aws: false
+  #   save: true
 
   # humann-370:
   #   repository: "humann"

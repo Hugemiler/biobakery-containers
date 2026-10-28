@@ -6,3 +6,6 @@ images:
     revision: 1
     context: "packages/pipeline-utils/nodb"
     aliases: ["2026", "latest"]
+    push_ghcr: false
+    push_aws: false
+    save: false

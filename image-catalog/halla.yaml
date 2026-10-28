@@ -6,6 +6,6 @@ images:
     revision: 1
     context: "packages/halla/0.8.20"
     aliases: ["0.8", "latest"]
-    push_ghcr: true
+    push_ghcr: false
     push_aws: false
     save: false

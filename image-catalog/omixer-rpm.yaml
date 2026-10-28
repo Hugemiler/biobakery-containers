@@ -6,4 +6,6 @@ images:
     revision: 1
     context: "packages/omixer_rpm/nodb"
     aliases: ["1", "latest"]
-
+    push_ghcr: false
+    push_aws: false
+    save: false

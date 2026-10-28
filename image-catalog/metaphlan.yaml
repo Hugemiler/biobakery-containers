@@ -9,7 +9,7 @@ images:
     package: "metaphlan"
     push_ghcr: false
     push_aws: false
-    save: true
+    save: false
 
   metaphlan-425-db:
     repository: "metaphlan"
@@ -20,7 +20,7 @@ images:
     aliases: ["4.2.5-mpa_vOct22_202403", "latest-mpa_vOct22_202403"]
     package: "metaphlan"
     push_ghcr: false
-    push_aws: false
+    push_aws: true
     save: true
 
   # metaphlan-31:

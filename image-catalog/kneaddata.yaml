@@ -9,7 +9,7 @@ images:
     package: "kneaddata"
     push_ghcr: false
     push_aws: false
-    save: true
+    save: false
 
   kneaddata-0121-hg37dec:
     repository: "kneaddata"
@@ -20,5 +20,5 @@ images:
     aliases: ["0.12-hg37dec", "latest-hg37dec"]
     package: "kneaddata"
     push_ghcr: false
-    push_aws: false
+    push_aws: true
     save: true
